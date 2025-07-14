@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <Math.h>
+#include <math.h>
 #include <ctype.h>
 #include <time.h>
 #include <stdbool.h>
@@ -9,7 +9,7 @@
 #ifndef FUNCTIONS_H
 #define FUNCTIONS_H
 
-#define TAM 100
+#define TAM 10
 
 typedef struct {
     char cpf[13];
@@ -33,10 +33,12 @@ extern const char *sobrenomes[100];
 extern const char *a[100];
 extern const char *b[100];
 
+void TARVBP_reseta_contador_nos();
 long long TARVBP_insere(long long endereco_raiz, Dados* d, const char* arq_idx_nome, const char* arq_dados_nome);
 long long busca_cpf(const char* arq_idx_nome, const char* cpf, long long endereco_raiz);
-
 long long TARVBP_remove(long long endereco_raiz, const char* cpf, const char* arq_idx_nome);
+void buscar_e_imprimir_dados(long long endereco_raiz, const char* cpf_busca, const char* arq_idx_nome, const char* arq_dados_nome);
+
 
 #endif //FUNCTIONS_H
 

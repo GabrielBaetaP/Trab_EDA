@@ -3,4 +3,4 @@ project(Trab_EDA C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(Trab_EDA main.c)
+add_executable(Trab_EDA main.c TARVBP.c)

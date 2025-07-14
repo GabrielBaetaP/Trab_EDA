@@ -7,9 +7,11 @@ void escrever_no(const char* arq_idx, TARVBP* no);
 TARVBP criar_no();
 long long encontrar_folha_para_remocao(const char* arq_idx_nome, long long endereco_raiz, const char* cpf);
 void remover_chave_folha(TARVBP* folha, const char* cpf, const char* arq_idx);
+int remover_chave_de_no(TARVBP *no, const char* cpf);
 void balancear_no_apos_remocao(long long endereco_no, const char* arq_idx);
 void divisao(TARVBP* pai, int i_filho, TARVBP* filho, const char* arq_idx);
 void insere_recursivo(TARVBP* no, Dados* d, const char* arq_idx, const char* arq_dados);
+void remover_ponteiro_pai(TARVBP* pai, int idx_filho_removido, const char* arq_idx);
 
 
 void TARVBP_reseta_contador_nos() {
@@ -21,38 +23,33 @@ TARVBP criar_no() {
     memset(&no, 0, sizeof(TARVBP));
     no.eh_folha = 1;
     no.proximo_no = -1;
+    no.ponteiro_pai = -1;
+    for(int i = 0; i < TAM * 2 + 1; i++) no.filhos[i] = -1;
     no.endereco = nos_atual * sizeof(TARVBP);
     nos_atual++;
-
     return no;
 }
 
 long long TARVBP_insere(long long endereco_raiz, Dados* d, const char* arq_idx_nome, const char* arq_dados_nome) {
-    if (busca_cpf(arq_idx_nome, d->cpf, endereco_raiz) != -1) {
-        return endereco_raiz;
-    }
-
+    if (busca_cpf(arq_idx_nome, d->cpf, endereco_raiz) != -1) return endereco_raiz;
     TARVBP raiz;
     if (endereco_raiz == -1) {
         raiz = criar_no();
     } else {
         ler_no(arq_idx_nome, endereco_raiz, &raiz);
     }
-
     if (raiz.num_chaves == (2 * TAM - 1)) {
         TARVBP nova_raiz = criar_no();
         nova_raiz.eh_folha = 0;
         nova_raiz.filhos[0] = raiz.endereco;
-
+        raiz.ponteiro_pai = nova_raiz.endereco;
         divisao(&nova_raiz, 0, &raiz, arq_idx_nome);
         insere_recursivo(&nova_raiz, d, arq_idx_nome, arq_dados_nome);
-
         endereco_raiz = nova_raiz.endereco;
     } else {
         insere_recursivo(&raiz, d, arq_idx_nome, arq_dados_nome);
         endereco_raiz = raiz.endereco;
     }
-
     return endereco_raiz;
 }
 
@@ -64,10 +61,8 @@ void insere_recursivo(TARVBP* no, Dados* d, const char* arq_idx, const char* arq
             no->reg[i + 1] = no->reg[i];
             i--;
         }
-
         strcpy(no->chaves[i + 1], d->cpf);
         no->num_chaves++;
-
         FILE* f_dados = fopen(arq_dados, "ab");
         if (f_dados) {
             fseek(f_dados, 0, SEEK_END);
@@ -75,26 +70,20 @@ void insere_recursivo(TARVBP* no, Dados* d, const char* arq_idx, const char* arq
             fwrite(d, sizeof(Dados), 1, f_dados);
             fclose(f_dados);
         }
-
         escrever_no(arq_idx, no);
     } else {
         int i = no->num_chaves - 1;
-        while (i >= 0 && strcmp(d->cpf, no->chaves[i]) < 0) {
-            i--;
-        }
+        while (i >= 0 && strcmp(d->cpf, no->chaves[i]) < 0) i--;
         i++;
-
         TARVBP filho;
         ler_no(arq_idx, no->filhos[i], &filho);
-
         if (filho.num_chaves == (2 * TAM - 1)) {
             divisao(no, i, &filho, arq_idx);
-            if (strcmp(d->cpf, no->chaves[i]) > 0) {
-                i++;
-            }
+            if (strcmp(d->cpf, no->chaves[i]) > 0) i++;
         }
-
         ler_no(arq_idx, no->filhos[i], &filho);
+        filho.ponteiro_pai = no->endereco;
+        escrever_no(arq_idx, &filho);
         insere_recursivo(&filho, d, arq_idx, arq_dados);
     }
 }
@@ -102,15 +91,12 @@ void insere_recursivo(TARVBP* no, Dados* d, const char* arq_idx, const char* arq
 void divisao(TARVBP* pai, int i_filho, TARVBP* filho, const char* arq_idx) {
     TARVBP novo_irmao = criar_no();
     novo_irmao.eh_folha = filho->eh_folha;
+    novo_irmao.ponteiro_pai = pai->endereco;
 
     if (!filho->eh_folha) {
         novo_irmao.num_chaves = TAM - 1;
-        for (int j = 0; j < TAM - 1; j++) {
-            strcpy(novo_irmao.chaves[j], filho->chaves[j + TAM]);
-        }
-        for (int j = 0; j < TAM; j++) {
-            novo_irmao.filhos[j] = filho->filhos[j + TAM];
-        }
+        for (int j = 0; j < TAM - 1; j++) strcpy(novo_irmao.chaves[j], filho->chaves[j + TAM]);
+        for (int j = 0; j < TAM; j++) novo_irmao.filhos[j] = filho->filhos[j + TAM];
     } else {
         novo_irmao.num_chaves = TAM;
         for (int j = 0; j < TAM; j++) {
@@ -120,29 +106,32 @@ void divisao(TARVBP* pai, int i_filho, TARVBP* filho, const char* arq_idx) {
         novo_irmao.proximo_no = filho->proximo_no;
         filho->proximo_no = novo_irmao.endereco;
     }
-
     filho->num_chaves = TAM - 1;
 
     for (int j = pai->num_chaves; j > i_filho; j--) {
         strcpy(pai->chaves[j], pai->chaves[j - 1]);
         pai->filhos[j + 1] = pai->filhos[j];
     }
-
-    if (!filho->eh_folha) {
-         strcpy(pai->chaves[i_filho], filho->chaves[TAM - 1]);
-    } else {
-        strcpy(pai->chaves[i_filho], novo_irmao.chaves[0]);
-    }
-
+    strcpy(pai->chaves[i_filho], (!filho->eh_folha) ? filho->chaves[TAM - 1] : novo_irmao.chaves[0]);
     pai->filhos[i_filho + 1] = novo_irmao.endereco;
     pai->num_chaves++;
 
+    if (!novo_irmao.eh_folha) {
+        for (int i = 0; i <= novo_irmao.num_chaves; i++) {
+            if (novo_irmao.filhos[i] == -1) continue;
+            TARVBP neto;
+            ler_no(arq_idx, novo_irmao.filhos[i], &neto);
+            neto.ponteiro_pai = novo_irmao.endereco;
+            escrever_no(arq_idx, &neto);
+        }
+    }
     escrever_no(arq_idx, pai);
     escrever_no(arq_idx, filho);
     escrever_no(arq_idx, &novo_irmao);
 }
 
 void ler_no(const char* arq_idx, long long endereco, TARVBP* no) {
+    if (endereco == -1) return;
     FILE* f = fopen(arq_idx, "rb");
     if (!f) return;
     fseek(f, endereco, SEEK_SET);
@@ -160,154 +149,206 @@ void escrever_no(const char* arq_idx, TARVBP* no) {
 
 long long busca_cpf(const char* arq_idx_nome, const char* cpf, long long endereco_raiz) {
     if (endereco_raiz == -1) return -1;
-
     TARVBP no_atual;
     ler_no(arq_idx_nome, endereco_raiz, &no_atual);
-
     while (!no_atual.eh_folha) {
         int i = 0;
-        while (i < no_atual.num_chaves && strcmp(cpf, no_atual.chaves[i]) >= 0) {
+        while (i < no_atual.num_chaves && strcmp(cpf, no_atual.chaves[i]) > 0) {
+            i++;
+        }
+        if (i < no_atual.num_chaves && strcmp(cpf, no_atual.chaves[i]) == 0) {
             i++;
         }
         ler_no(arq_idx_nome, no_atual.filhos[i], &no_atual);
     }
-
     for (int i = 0; i < no_atual.num_chaves; i++) {
-        if (strcmp(cpf, no_atual.chaves[i]) == 0) {
-            return no_atual.reg[i];
-        }
+        if (strcmp(cpf, no_atual.chaves[i]) == 0) return no_atual.reg[i];
     }
     return -1;
 }
 
 long long TARVBP_remove(long long endereco_raiz, const char* cpf, const char* arq_idx_nome) {
-    if (endereco_raiz == -1 || busca_cpf(arq_idx_nome, cpf, endereco_raiz) == -1) {
-        // A árvore está vazia ou a chave não existe, nada a fazer.
-        return endereco_raiz;
-    }
-
-    // 1. Encontrar o nó folha onde a chave está
-    long long endereco_folha = encontrar_folha_para_remocao(arq_idx_nome, endereco_raiz, cpf);
-    TARVBP folha;
-    ler_no(arq_idx_nome, endereco_folha, &folha);
-
-    // 2. Remover a chave da folha
-    remover_chave_folha(&folha, cpf, arq_idx_nome);
-
-    // 3. Se a folha ficou com menos chaves que o mínimo, balancear
-    if (folha.num_chaves < TAM - 1) {
-        balancear_no_apos_remocao(folha.endereco, arq_idx_nome);
-    }
-
-    // 4. Verificar se a raiz ficou vazia (após possíveis mesclagens)
-    TARVBP raiz_final;
-    ler_no(arq_idx_nome, endereco_raiz, &raiz_final);
-    if (!raiz_final.eh_folha && raiz_final.num_chaves == 0) {
-        // Se a raiz não é folha e não tem chaves, seu primeiro filho se torna a nova raiz.
-        return raiz_final.filhos[0];
-    }
-
-    return endereco_raiz;
-}
-
-
-long long encontrar_folha_para_remocao(const char* arq_idx_nome, long long endereco_no, const char* cpf) {
+    if (endereco_raiz == -1 || busca_cpf(arq_idx_nome, cpf, endereco_raiz) == -1) return endereco_raiz;
     TARVBP no;
-    ler_no(arq_idx_nome, endereco_no, &no);
+    ler_no(arq_idx_nome, endereco_raiz, &no);
 
     while (!no.eh_folha) {
         int i = 0;
-        while (i < no.num_chaves && strcmp(cpf, no.chaves[i]) >= 0) {
-            i++;
-        }
+        while (i < no.num_chaves && strcmp(cpf, no.chaves[i]) >= 0) i++;
         ler_no(arq_idx_nome, no.filhos[i], &no);
     }
-    return no.endereco;
-}
 
-void remover_chave_folha(TARVBP* folha, const char* cpf, const char* arq_idx) {
-    int i = 0;
-    while (i < folha->num_chaves && strcmp(cpf, folha->chaves[i]) != 0) {
-        i++;
+    int idx_removido = remover_chave_de_no(&no, cpf);
+    if(idx_removido == -1) return endereco_raiz;
+
+    escrever_no(arq_idx_nome, &no);
+
+    if (no.num_chaves < TAM - 1 && no.ponteiro_pai != -1) {
+        balancear_no_apos_remocao(no.endereco, arq_idx_nome);
     }
 
-    if (i == folha->num_chaves) return; // Chave não encontrada (não deveria acontecer)
-
-    // Move as chaves e registros para a esquerda para preencher o espaço
-    for (int j = i; j < folha->num_chaves - 1; j++) {
-        strcpy(folha->chaves[j], folha->chaves[j + 1]);
-        folha->reg[j] = folha->reg[j + 1];
+    TARVBP raiz_final;
+    ler_no(arq_idx_nome, endereco_raiz, &raiz_final);
+    if (!raiz_final.eh_folha && raiz_final.num_chaves == 0) {
+        TARVBP nova_raiz;
+        ler_no(arq_idx_nome, raiz_final.filhos[0], &nova_raiz);
+        nova_raiz.ponteiro_pai = -1;
+        escrever_no(arq_idx_nome, &nova_raiz);
+        return nova_raiz.endereco;
     }
-    folha->num_chaves--;
-    escrever_no(arq_idx, folha);
+    return endereco_raiz;
 }
 
 void balancear_no_apos_remocao(long long endereco_no, const char* arq_idx) {
-    TARVBP no;
+    TARVBP no, pai, irmao;
+    int i_filho;
+
     ler_no(arq_idx, endereco_no, &no);
+    if (no.ponteiro_pai == -1) return;
 
-    if (no.ponteiro_pai == -1) return; // Se for a raiz, ela pode ter menos chaves.
-
-    TARVBP pai;
     ler_no(arq_idx, no.ponteiro_pai, &pai);
-
-    // Encontra a posição do nó atual nos filhos do pai
-    int i_filho = 0;
-    while (i_filho < pai.num_chaves + 1 && pai.filhos[i_filho] != no.endereco) {
-        i_filho++;
+    for (i_filho = 0; i_filho <= pai.num_chaves; i_filho++) {
+        if (pai.filhos[i_filho] == no.endereco) break;
     }
 
-    // Tenta redistribuir com o irmão esquerdo
     if (i_filho > 0) {
-        TARVBP irmao_esq;
-        ler_no(arq_idx, pai.filhos[i_filho - 1], &irmao_esq);
-        if (irmao_esq.num_chaves > TAM - 1) {
-            // Lógica de pegar emprestado do irmão esquerdo...
-            // (Esta parte é complexa e omitida para focar na mesclagem, que é mais comum)
+        ler_no(arq_idx, pai.filhos[i_filho - 1], &irmao);
+        if (irmao.num_chaves + no.num_chaves < 2 * TAM - 1) {
+            int pos_inicial_filhos_movidos = irmao.num_chaves + (!irmao.eh_folha ? 1 : 0);
+
+            if (!irmao.eh_folha) {
+                strcpy(irmao.chaves[irmao.num_chaves++], pai.chaves[i_filho - 1]);
+            }
+            for (int i = 0; i < no.num_chaves; i++) {
+                strcpy(irmao.chaves[irmao.num_chaves], no.chaves[i]);
+                if (irmao.eh_folha) irmao.reg[irmao.num_chaves] = no.reg[i];
+                irmao.filhos[irmao.num_chaves] = no.filhos[i];
+                irmao.num_chaves++;
+            }
+            if (!irmao.eh_folha) irmao.filhos[irmao.num_chaves] = no.filhos[no.num_chaves];
+            if (irmao.eh_folha) irmao.proximo_no = no.proximo_no;
+
+            int num_chaves_pai_antigo = pai.num_chaves;
+            remover_chave_de_no(&pai, pai.chaves[i_filho - 1]);
+            for(int i = i_filho; i < num_chaves_pai_antigo; i++) {
+                pai.filhos[i] = pai.filhos[i+1];
+            }
+            pai.filhos[num_chaves_pai_antigo] = -1;
+
+            escrever_no(arq_idx, &irmao);
+            escrever_no(arq_idx, &pai);
+
+            if (!irmao.eh_folha) {
+                for(int i = pos_inicial_filhos_movidos; i <= irmao.num_chaves; i++) {
+                     TARVBP neto;
+                     ler_no(arq_idx, irmao.filhos[i], &neto);
+                     neto.ponteiro_pai = irmao.endereco;
+                     escrever_no(arq_idx, &neto);
+                }
+            }
+
+            if (pai.ponteiro_pai != -1 && pai.num_chaves < TAM - 1) {
+                balancear_no_apos_remocao(pai.endereco, arq_idx);
+            }
+            return;
         }
     }
 
-    // Tenta redistribuir com o irmão direito
     if (i_filho < pai.num_chaves) {
-        TARVBP irmao_dir;
-        ler_no(arq_idx, pai.filhos[i_filho + 1], &irmao_dir);
-        if (irmao_dir.num_chaves > TAM - 1) {
-            // Lógica de pegar emprestado do irmão direito...
-            // (Omitido para focar na mesclagem)
-        }
-    }
+        ler_no(arq_idx, pai.filhos[i_filho + 1], &irmao);
+        if (no.num_chaves + irmao.num_chaves < 2 * TAM - 1) {
+            int pos_inicial_filhos_movidos = no.num_chaves + (!no.eh_folha ? 1 : 0);
 
-    // Se a redistribuição falhou, faz a mesclagem (merge)
-    if (i_filho > 0) { // Tenta mesclar com o irmão esquerdo
-        TARVBP irmao_esq;
-        ler_no(arq_idx, pai.filhos[i_filho - 1], &irmao_esq);
-        // Lógica de mesclagem...
-    } else { // Tenta mesclar com o irmão direito
-        TARVBP irmao_dir;
-        ler_no(arq_idx, pai.filhos[i_filho + 1], &irmao_dir);
+            if(!no.eh_folha){
+                strcpy(no.chaves[no.num_chaves++], pai.chaves[i_filho]);
+            }
+            for (int i = 0; i < irmao.num_chaves; i++) {
+                strcpy(no.chaves[no.num_chaves], irmao.chaves[i]);
+                if(no.eh_folha) no.reg[no.num_chaves] = irmao.reg[i];
+                no.filhos[no.num_chaves] = irmao.filhos[i];
+                no.num_chaves++;
+            }
+            if(!no.eh_folha) no.filhos[no.num_chaves] = irmao.filhos[irmao.num_chaves];
+            if(no.eh_folha) no.proximo_no = irmao.proximo_no;
 
-        // Move as chaves do nó atual para o final do irmão direito
-        for(int j=0; j < no.num_chaves; j++){
-            strcpy(irmao_dir.chaves[irmao_dir.num_chaves + j], no.chaves[j]);
-            irmao_dir.reg[irmao_dir.num_chaves + j] = no.reg[j];
-        }
-        irmao_dir.num_chaves += no.num_chaves;
+            int num_chaves_pai_antigo = pai.num_chaves;
+            remover_chave_de_no(&pai, pai.chaves[i_filho]);
+            for(int i = i_filho + 1; i < num_chaves_pai_antigo; i++) {
+                pai.filhos[i] = pai.filhos[i+1];
+            }
+            pai.filhos[num_chaves_pai_antigo] = -1;
 
-        // Remove a chave e o ponteiro do pai
-        for(int j = i_filho; j < pai.num_chaves - 1; j++){
-            strcpy(pai.chaves[j], pai.chaves[j+1]);
-            pai.filhos[j+1] = pai.filhos[j+2];
-        }
-        pai.num_chaves--;
+            escrever_no(arq_idx, &no);
+            escrever_no(arq_idx, &pai);
 
-        escrever_no(arq_idx, &irmao_dir);
-        escrever_no(arq_idx, &pai);
+            if (!no.eh_folha) {
+                for(int i = pos_inicial_filhos_movidos; i <= no.num_chaves; i++) {
+                     TARVBP neto;
+                     ler_no(arq_idx, no.filhos[i], &neto);
+                     neto.ponteiro_pai = no.endereco;
+                     escrever_no(arq_idx, &neto);
+                }
+            }
 
-        // O nó 'no' agora está "morto", mas seu espaço não é recuperado.
-
-        // Se o pai ficou em underflow, balanceia ele recursivamente
-        if(pai.num_chaves < TAM - 1){
-            balancear_no_apos_remocao(pai.endereco, arq_idx);
+            if (pai.ponteiro_pai != -1 && pai.num_chaves < TAM - 1) {
+                balancear_no_apos_remocao(pai.endereco, arq_idx);
+            }
+            return;
         }
     }
 }
+
+void remover_ponteiro_pai(TARVBP* pai, int idx_filho_removido, const char* arq_idx) {
+    for (int i = idx_filho_removido; i < pai->num_chaves + 1; i++) {
+        pai->filhos[i] = pai->filhos[i + 1];
+    }
+    for (int i = idx_filho_removido - 1; i < pai->num_chaves - 1; i++) {
+        strcpy(pai->chaves[i], pai->chaves[i + 1]);
+    }
+    pai->num_chaves--;
+    escrever_no(arq_idx, pai);
+
+    if (pai->ponteiro_pai != -1 && pai->num_chaves < TAM - 1) {
+        balancear_no_apos_remocao(pai->endereco, arq_idx);
+    }
+}
+
+int remover_chave_de_no(TARVBP *no, const char* cpf) {
+    int i = 0;
+    while(i < no->num_chaves && strcmp(cpf, no->chaves[i]) > 0) i++;
+    if (i == no->num_chaves || strcmp(cpf, no->chaves[i]) != 0) return -1;
+
+    for (int j = i; j < no->num_chaves - 1; j++) {
+        strcpy(no->chaves[j], no->chaves[j + 1]);
+        if (no->eh_folha) no->reg[j] = no->reg[j+1];
+    }
+    no->num_chaves--;
+    return i;
+}
+
+void buscar_e_imprimir_dados(long long endereco_raiz, const char* cpf_busca, const char* arq_idx_nome, const char* arq_dados_nome) {
+    long long endereco_dado = busca_cpf(arq_idx_nome, cpf_busca, endereco_raiz);
+
+    if (endereco_dado == -1) {
+        printf("\nCPF '%s' NÃO ENCONTRADO na base de dados.\n", cpf_busca);
+        return;
+    }
+
+    FILE* arq_dados = fopen(arq_dados_nome, "rb");
+    if (!arq_dados) {
+        perror("Erro crítico ao abrir o arquivo de dados (ArqDados.bin)");
+        return;
+    }
+
+    fseek(arq_dados, endereco_dado, SEEK_SET);
+
+    Dados dados_aluno;
+    fread(&dados_aluno, sizeof(Dados), 1, arq_dados);
+    fclose(arq_dados);
+
+    printf("\n--- Dados Encontrados para o CPF: %s ---\n", dados_aluno.cpf);
+    printf("Nome: %s\n", dados_aluno.nome);
+    printf("Nota Final: %d\n", dados_aluno.nota_final);
+    printf("-----------------------------------------\n");
+}
+

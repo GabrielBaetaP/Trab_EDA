@@ -1,4 +1,4 @@
-#include "TARVBP.c"
+#include "functions.h"
 #include <time.h>
 
 Dados* ler_dados(FILE* cpf, FILE* nome, FILE* nota) {
@@ -43,10 +43,10 @@ int main(void) {
     }
 
     int index = 0;
-    char buscas[1001][13];
+    char buscas[10001][13];
     long long raiz = -1;
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 10000; i++) {
         Dados* d = ler_dados(cpf, nome, nota);
         if (!d) break;
         strcpy(buscas[index++], d->cpf);
@@ -114,6 +114,30 @@ int main(void) {
     printf("\n--- Resumo Final ---\n");
     printf("Registros que deveriam existir e foram encontrados: %d de %d\n", encontrados, index - 10);
     printf("Registros que deveriam ter sido removidos e não foram encontrados: %d de 10\n", nao_encontrados_corretamente);
+
+    printf("\n======================================================\n");
+    printf("MODO DE BUSCA INTERATIVA\n");
+    printf("======================================================\n");
+
+    char cpf_digitado[14];
+    while(1) {
+        printf("\nDigite um CPF para buscar (ou 'sair' para terminar): ");
+        // Lê até 13 caracteres para evitar buffer overflow
+        if(scanf("%13s", cpf_digitado) != 1) break;
+
+        // Limpa o buffer de entrada para evitar problemas com a próxima leitura
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF);
+
+        if (strcmp(cpf_digitado, "sair") == 0) {
+            break;
+        }
+
+        // Chama a nova função para buscar e imprimir os dados
+        buscar_e_imprimir_dados(raiz, cpf_digitado, "ArqIdx.bin", "ArqDados.bin");
+    }
+
+    printf("\nPrograma finalizado.\n");
 
     fclose(cpf);
     fclose(nome);

@@ -9,10 +9,10 @@
 #ifndef FUNCTIONS_H
 #define FUNCTIONS_H
 
-#define TAM 5
+#define TAM 100
 
 typedef struct {
-    long long cpf;
+    char cpf[13];
     char nome[50];
     int nota_final;
 }Dados;
@@ -20,18 +20,23 @@ typedef struct {
 typedef struct {
     int eh_folha;
     int num_chaves;
-    long ponteiro_pai;
-    int filhos_sao_folhas;
-    long long chaves[TAM * 2 - 1];
-    long filhos[TAM * 2];
-    Dados dados[TAM * 2 - 1];
-    long proximo_no_folha;
+    long long ponteiro_pai;
+    char chaves[TAM * 2][13];
+    long long filhos[TAM * 2 + 1];
+    long long endereco;
+    long long reg[TAM * 2];
+    long long proximo_no;
 }TARVBP;
 
 extern const char *nomes[100];
 extern const char *sobrenomes[100];
 extern const char *a[100];
 extern const char *b[100];
+
+long long TARVBP_insere(long long endereco_raiz, Dados* d, const char* arq_idx_nome, const char* arq_dados_nome);
+long long busca_cpf(const char* arq_idx_nome, const char* cpf, long long endereco_raiz);
+
+long long TARVBP_remove(long long endereco_raiz, const char* cpf, const char* arq_idx_nome);
 
 #endif //FUNCTIONS_H
 
@@ -41,23 +46,4 @@ void leitura_escrita(const char *arquivo_bin, const char *arquivo_txt);
 void leitura_escrita_nota(const char *arquivo_bin, const char *arquivo_txt);
 long long cpf_string_para_long(const char* cpf_str);
 
-void inicializar_arvbp(TARVBP* arvbp, int eh_folha);
-void inicializar(const char* arq_meta, const char* arq_idx, const char* arq_dados);
-long get_end_raiz(FILE *arq_meta);
-void ler_metadados(const char* arq_meta, long* end_raiz, int* eh_folha);
-void escrever_metadados(const char* arq_meta, long end_raiz, int eh_folha);
-void ler_no(FILE *f_idx, FILE *f_dados, long end, int eh_folha, TARVBP *arvbp);
-bool buscar_cpf(long long cpf_alvo, Dados *result);
-long end_final(const char *arquivo);
-void escrever_no(const char* arq_idx, const char* arq_dados, long end, TARVBP* arvbp);
-void divisao_interno(FILE *f_idx, FILE *f_dados, long end_cheio, long long chave_vinda_baixo, long end_dir, long long* chave_acima, long* end_novo);
-int insere_aux(FILE* f_idx, FILE* f_dados, long end, int eh_folha, long long* chave_promovida, long* end_novo, Dados* novo);
-void inserir_dados(Dados* novo);
 
-
-// TARVBP* TARVBP_cria();
-// int TARVBP_tem_id(TARVBP *a, long int id, int t);
-// TARVBP* TARVBP_busca(TARVBP* a, long int id, int t);
-// TARVBP* TARVBP_insere(TARVBP* a, Dados *novo);
-// TARVBP* TARVBP_retira(TARVBP* a, unsigned long int id, int t);
-// void TARVBP_libera(TARVBP* a, int t);
